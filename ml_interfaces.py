@@ -100,7 +100,7 @@ def prune_model(args, config, model):
     
     _, masks = pruner.compress()
     pruner.unwrap_model()
-    ModelSpeedup(model, torch.rand(3, 3, 28, 28).cuda(), masks).speedup_model()
+    ModelSpeedup(model, torch.rand(64, 3, 32, 32).cuda(), masks).speedup_model()
     
     return model
 
@@ -142,6 +142,6 @@ if __name__ == '__main__':
     model = prune_model(args, config_list, model)
     print("After pruning:")
     print(model)
-    evaluate_model(model, test_loader)
+    train_model(model, optimizer, criterion, train_loader, mode='tune')
     evaluate_model(model, test_loader)
     
