@@ -55,7 +55,9 @@ class CIFAR10Data(pl.LightningDataModule):
             ]
         )
         dataset = CIFAR10(root=self.hyparams.data_dir, train=True, transform=transform, download=True)
-        dataset = random_split(dataset, [0.2, 0.8])
+        len_1 = int(0.2*len(dataset))
+        len_2 = len(dataset) - len_1
+        dataset = random_split(dataset, [len_1, len_2])
         dataloader = DataLoader(
             dataset[0],
             batch_size=self.hyparams.batch_size,

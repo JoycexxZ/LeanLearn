@@ -43,7 +43,7 @@ def main(args):
         
         if bool(args.pretrained):
             state_dict = os.path.join(
-                "cifar10_models", "state_dicts", args.classifier + ".pt"
+                "weights", args.classifier + ".pt"
             )
             model.model.load_state_dict(torch.load(state_dict))
         
