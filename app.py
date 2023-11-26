@@ -1,9 +1,32 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from omegaconf import OmegaConf
 
+from engine import Engine
 from ui_components.status_bar import StatusBar
+from ui_components.main_container import MainPage
 
+
+def run_experiment(args):
+    if args.pretrained != 'True':
+        engine.train(mode='train', progress_bar_sec=status_window.status)
+    
+    # Test before pruning
+    test_log_window = main_page.logs_page.expander("Test before pruning")    
+    engine.test(progress_bar_sec=status_window.status, st_log_window=test_log_window)
+    # Prune the model
+    prune_log_window = main_page.logs_page.expander("Pruning")
+    prune_log_window_1, prune_log_window_2 = prune_log_window.columns(2)
+    engine.prune(prune_log_window_1, prune_log_window_2)
+    # Finetune the model
+    finetune_log_window = main_page.logs_page.expander("Finetuning logs")
+    engine.train(mode='tune', progress_bar_sec=status_window.status, st_log_window=finetune_log_window)
+    # Test after pruning
+    test_log_window = main_page.logs_page.expander("Test after pruning")
+    engine.test(progress_bar_sec=status_window.status, st_log_window=test_log_window)
+
+    status_window.state_finished()
 
 ### Front End
 st.title('A Simple Pruning Helper')
@@ -11,6 +34,10 @@ st.caption('_This is a simple app to help you prune your neural network._')
 
 ## Status window
 status_window = StatusBar(st.container())
+
+## Main page
+main_container = st.container()
+main_page = MainPage(main_container)
 
 ## Sidebar
 args = {}
@@ -38,11 +65,18 @@ with st.sidebar:
             args['batch_size'] = st.slider('batch size', 1, 256, 128, 1)
             args['train_epoch'] = st.slider('train epoch', 1, 200, 100, 10)
             args['tune_epoch'] = st.slider('tune epoch', 1, 100, 20, 10)
-            args['learning_rate'] = st.slider('learning rate', 0.0, 1.0, 0.01, 0.01)
-            args['weight_decay'] = st.slider('weight decay', 0.0, 1.0, 0.01, 0.01)
+            args['optimizer'] = st.selectbox('optimizer', ['sgd', 'adam'])
+            args['learning_rate'] = st.number_input('learning rate', value=1e-2, step=1e-4)
+            args['weight_decay'] = st.number_input('weight decay', value=0.01, step=1e-4)
+            args['seed'] = st.number_input('seed', value=3407, step=1)
+            args['num_workers'] = st.number_input('num workers', value=8, step=1)
+            args = OmegaConf.create(args)
         
         submitted = st.form_submit_button("Run Experiment")
         if submitted:
             status_window.state_running()
-            
+            # st.write(args.keys())
+            engine = Engine(args)
+            main_page.init_page()
+            run_experiment(args)
 
