@@ -3,15 +3,19 @@ import pandas as pd
 import numpy as np
 from omegaconf import OmegaConf
 
-from engine import Engine
+from utils.engine import Engine
+from utils.figures import SummaryWriter
 from ui_components.status_bar import StatusBar
 from ui_components.main_container import MainPage
+from ui_components.dashboard import create_dashboard
 
 
 def run_experiment(args):
+    summary_writer = SummaryWriter()
+    engine = Engine(args, summary_writer)
+    # Train if not pretrained
     if args.pretrained != 'True':
         engine.train(mode='train', progress_bar_sec=status_window.status)
-    
     # Test before pruning
     test_log_window = main_page.logs_page.expander("Test before pruning")    
     engine.test(progress_bar_sec=status_window.status, st_log_window=test_log_window)
@@ -25,10 +29,20 @@ def run_experiment(args):
     # Test after pruning
     test_log_window = main_page.logs_page.expander("Test after pruning")
     engine.test(progress_bar_sec=status_window.status, st_log_window=test_log_window)
-
+    # Update UI
     status_window.state_finished()
+    figure_names = [
+        "Tune Loss", 
+        "Tune Accuracy",
+        # "Test Classwise Accuracy",
+        "Train Test Classwise Accuracy",
+        # "test",
+        # "test_bar"
+    ]
+    create_dashboard(main_page.dashboard_page, summary_writer, figure_names)
 
-### Front End
+
+# Front End
 st.title('A Simple Pruning Helper')
 st.caption('_This is a simple app to help you prune your neural network._')
 
@@ -63,8 +77,8 @@ with st.sidebar:
                 "movement",], index=2)
             args['sparse_ratio'] = st.slider('sparse ratio', 0.0, 1.0, 0.5, 0.1)
             args['batch_size'] = st.slider('batch size', 1, 256, 128, 1)
-            args['train_epoch'] = st.slider('train epoch', 1, 200, 100, 10)
-            args['tune_epoch'] = st.slider('tune epoch', 1, 100, 20, 10)
+            args['train_epoch'] = st.slider('train epoch', 1, 200, 100, 1)
+            args['tune_epoch'] = st.slider('tune epoch', 1, 100, 20, 1)
             args['optimizer'] = st.selectbox('optimizer', ['sgd', 'adam'])
             args['learning_rate'] = st.number_input('learning rate', value=1e-2, step=1e-4)
             args['weight_decay'] = st.number_input('weight decay', value=0.01, step=1e-4)
@@ -76,7 +90,6 @@ with st.sidebar:
         if submitted:
             status_window.state_running()
             # st.write(args.keys())
-            engine = Engine(args)
             main_page.init_page()
             run_experiment(args)
 

@@ -4,17 +4,17 @@ import numpy as np
 import streamlit as st
 import time
 from torch.optim import SGD
-from scheduler import WarmupCosineLR
 from torchmetrics import Accuracy
 import torch.nn as nn
 
-from loggings import Log
+from utils.scheduler import WarmupCosineLR
+from utils.loggings import Log
+from utils.data import CIFAR10Data
 from model.build_model import *
-from data import CIFAR10Data
 
 
 class Engine:
-    def __init__(self, args):
+    def __init__(self, args, summary_writer):
         self.args = args
         
         self.seed_everything(args.seed)
@@ -41,7 +41,7 @@ class Engine:
         self.__init_optimizer()
         self.__init_accuracy()
         self.criterion = nn.CrossEntropyLoss()
-        
+        self.summary_writer = summary_writer
         
     @staticmethod
     def seed_everything(seed):
@@ -70,6 +70,7 @@ class Engine:
     def __init_accuracy(self):
         self.train_acc = Accuracy(task='multiclass', num_classes=self.num_classes).cuda()
         self.test_acc = Accuracy(task='multiclass', num_classes=self.num_classes).cuda()
+        self.train_class_acc = Accuracy(task='multiclass', num_classes=self.num_classes, average=None).cuda()
         self.test_class_acc = Accuracy(task='multiclass', num_classes=self.num_classes, average=None).cuda()
     
     def train(self, mode='train', progress_bar_sec=None, st_log_window=None):
@@ -88,22 +89,31 @@ class Engine:
                 warmup_epochs=epoch * 0.3, 
                 max_epochs=epoch
             )
-        self.model.train()
         for e in range(epoch):
+            self.model.train()
             self.train_acc.reset()
+            self.test_class_acc.reset()
             for images, labels in self.train_loader:
                 images, labels = images.cuda(), labels.cuda()
                 self.optimizer.zero_grad()
                 output = self.model(images)
                 loss = self.criterion(output, labels)
                 acc = self.train_acc.update(output, labels)
+                per_class_acc = self.train_class_acc.update(output, labels)
                 loss.backward()
                 self.optimizer.step()
-            acc = self.train_acc.compute()
-            self.logger.info("{} Epoch: {}, Loss: {:.4f}, Accuracy: {:.2f}".format(mode.capitalize(), e, loss, acc*100))
             scheduler.step()
+            
+            acc = self.train_acc.compute()
+            per_class_acc = self.train_class_acc.compute()
+            self.logger.info("{} Epoch: {}, Loss: {:.4f}, Accuracy: {:.2f}".format(mode.capitalize(), e, loss, acc*100))
+            self.summary_writer.add_scalar('Loss/{}'.format(mode), loss, e)
+            self.summary_writer.add_scalar('Accuracy/{}'.format(mode), acc, e)
+            if e == epoch - 1:
+                self.summary_writer.add_class_acc('ClassAcc/{}'.format(mode), per_class_acc)
+            
             if progress_bar is not None:
-                progress_bar.progress(e / epoch, text=progress_bar_text)
+                progress_bar.progress((e+1) / epoch, text=progress_bar_text)
         self.logger.stop_capture(log_id)
         
     def test(self, progress_bar_sec=None, st_log_window=None):
@@ -122,11 +132,12 @@ class Engine:
                 accuracy = self.test_acc.update(output, labels)
                 class_accuracy = self.test_class_acc.update(output, labels)
                 if progress_bar is not None:
-                    progress_bar.progress(i / len(self.test_loader), text=progress_bar_text)
+                    progress_bar.progress((i+1) / len(self.test_loader), text=progress_bar_text)
         accuracy = self.test_acc.compute()
         class_accuracy = self.test_class_acc.compute()
         self.logger.info("Test Loss: {:.4f}, Accuracy: {:.2f}".format(loss, accuracy*100))
-        self.logger.info("Classwise Accuracy: {}".format(class_accuracy))
+        self.logger.info("Classwise Accuracy: {}".format(class_accuracy.cpu().tolist()))
+        self.summary_writer.add_class_acc('ClassAcc/test', class_accuracy)
         self.logger.stop_capture(log_id)
     
     def prune(self, st_log_window_1=None, st_log_window_2=None):
@@ -145,6 +156,7 @@ class Engine:
         ModelSpeedup(
             model=self.model, dummy_input=dummy_ip, masks_or_file=masks
         ).speedup_model()
+        self.__init_optimizer()
         
         if st_log_window_2 is not None:
             log_id = self.logger.start_capture(st_log_window_2, fmt='plain')
