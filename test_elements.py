@@ -38,6 +38,11 @@ with elements("dashboard"):
             mui.Typography("First item")
             mui.Typography("Drag me around")
         # p1 = mui.Paper("First item", key="first_item")
-        p2 = mui.Paper("Second item (cannot drag)", key="second_item")
-        p3 = mui.Paper("Third item (cannot resize)", key="third_item")
+        p2 = mui.Paper("Second item (cannot drag)")
+        p3 = mui.Paper("Third item (cannot resize)")
         
+
+with p2:
+    mui.Typography("Drag me around")
+with p3:
+    mui.Typography("Resize me")
