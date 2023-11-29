@@ -11,6 +11,7 @@ from utils.scheduler import WarmupCosineLR
 from utils.loggings import Log
 from utils.data import CIFAR10Data
 from model.build_model import *
+from utils.model_info_utils import *
 
 
 class Engine:
@@ -42,6 +43,8 @@ class Engine:
         self.__init_accuracy()
         self.criterion = nn.CrossEntropyLoss()
         self.summary_writer = summary_writer
+        self.end_points = {}
+        self.acc = 0
         
     @staticmethod
     def seed_everything(seed):
@@ -135,17 +138,22 @@ class Engine:
                     progress_bar.progress((i+1) / len(self.test_loader), text=progress_bar_text)
         accuracy = self.test_acc.compute()
         class_accuracy = self.test_class_acc.compute()
+        self.acc = accuracy.item()
+        self.end_points['accuracy_aft'] = self.acc
         self.logger.info("Test Loss: {:.4f}, Accuracy: {:.2f}".format(loss, accuracy*100))
         self.logger.info("Classwise Accuracy: {}".format(class_accuracy.cpu().tolist()))
         self.summary_writer.add_class_acc('ClassAcc/test', class_accuracy)
         self.logger.stop_capture(log_id)
     
-    def prune(self, st_log_window_1=None, st_log_window_2=None):
+    def prune(self, st_log_window_1=None, st_log_window_2=None, st_param_window=None, st_spec_window=None):
         if st_log_window_1 is not None:
             log_id = self.logger.start_capture(st_log_window_1, fmt='plain')
         self.logger.info("Model before pruning:")
         self.logger.info(self.model)
         self.logger.stop_capture(log_id)
+        self.end_points["accuracy_bef"] = self.acc
+        self.end_points["model_param_bef"], self.end_points["total_param_bef"] = get_model_param(self.model)
+        self.end_points["model_spec_bef"] = get_model_spec(self.model)
             
         config_list = pruner_config[self.args.model_name]
         config_list[0]["sparse_ratio"] = self.args.sparse_ratio
@@ -158,9 +166,24 @@ class Engine:
         ).speedup_model()
         self.__init_optimizer()
         
+        # self.end_points['accuracy_aft'] = self.acc
+        self.end_points['model_param_aft'], self.end_points['total_param_aft'] = get_model_param(self.model)
+        self.end_points['model_spec_aft'] = get_model_spec(self.model)
+        
         if st_log_window_2 is not None:
             log_id = self.logger.start_capture(st_log_window_2, fmt='plain')
         self.logger.info("Model after pruning:")
         self.logger.info(self.model)
         self.logger.stop_capture(log_id)
         
+        if st_param_window is not None:
+            log_id = self.logger.start_capture(st_param_window, fmt='plain')
+            model_param_aft = get_model_param(self.model)
+            self.logger.info(get_model_param_table(model_param_bef, model_param_aft))
+            self.logger.stop_capture(log_id)
+        
+        if st_spec_window is not None:
+            log_id = self.logger.start_capture(st_spec_window, fmt='plain')
+            model_spec_aft = get_model_spec(self.model)
+            self.logger.info(get_model_spec_table(model_spec_bef, model_spec_aft))
+            self.logger.stop_capture(log_id)
