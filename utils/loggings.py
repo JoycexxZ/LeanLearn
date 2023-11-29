@@ -18,7 +18,7 @@ class Log(object):
         self.logger = logging.getLogger()
         
         self.formatter = logging.Formatter(
-            fmt="%(asctime)s %(filename)s [line:%(lineno)d]: %(message)s",
+            fmt="%(asctime)s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
@@ -42,7 +42,7 @@ class Log(object):
         if fmt == 'log':
             streamlit_handler.setFormatter(self.formatter)
         elif fmt == 'plain':
-            streamlit_handler.setFormatter(logging.Formatter(fmt='%(message)s'))
+            streamlit_handler.setFormatter(logging.Formatter(fmt='%(message)s  \n'))
         self.logger.addHandler(streamlit_handler)
         return num_id
         

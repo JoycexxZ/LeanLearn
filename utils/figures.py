@@ -1,5 +1,6 @@
 import torch
 from streamlit_elements import elements, nivo, mui
+from utils.model_info_utils import simplify_number
 
 class SummaryWriter:
     def __init__(self):
@@ -15,6 +16,9 @@ class SummaryWriter:
         ]
         self.class_names = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
         
+    def update_endpoints(self, end_points):
+        self.end_points = end_points
+            
     def add_scalar(self, key, value, step):
         if key not in self.tracker:
             self.tracker[key] = []
@@ -64,3 +68,47 @@ class SummaryWriter:
         #                 "legend": "value",
         #             }]
         #         )
+        
+    def get_model_param_table(self):
+        param_num_bef, param_num_aft = self.end_points['model_param_bef'], self.end_points['model_param_aft']
+        columns = [
+            {"field": "id", "headerName": "ID", "width": 50},
+            {"field": "name", "headerName": "Layer", "width": 200},
+            {"field": "bef", "headerName": "Before", "width": 100},
+            {"field": "aft", "headerName": "After", "width": 100},
+            {"field": "ratio", "headerName": "Ratio", "width": 80},
+        ]
+        rows = [{"id": i,
+                "name": key, 
+                "bef": simplify_number(param_num_bef[key]), 
+                "aft": simplify_number(param_num_aft[key]),
+                "ratio": f"{param_num_aft[key] / param_num_bef[key]:2f}"} 
+                for i, key in enumerate(param_num_bef)]
+        
+        return columns, rows
+
+    def get_model_spec_table(self):
+        spec_bef, spec_aft = self.end_points['model_spec_bef'], self.end_points['model_spec_aft']
+        columns = [
+            {"field": "id", "headerName": "ID", "width": 50},
+            {"field": "name", "headerName": "Layer", "width": 200},
+            {"field": "bef", "headerName": "Before", "width": 150},
+            {"field": "aft", "headerName": "After", "width": 150},
+            {"field": "pruned", "headerName": "Pruned", "width": 100},
+        ]
+        rows = [{"id": i,
+                "name": key, 
+                "bef": spec_bef[key], 
+                "aft": spec_aft[key], 
+                "pruned": spec_bef[key] != spec_aft[key]} 
+                for i, key in enumerate(spec_bef)]
+        
+        return columns, rows
+    
+    def get_basic_info(self):
+        basic_info = [
+            f"Model Out Path: ./outputs/{self.end_points['model_name']}.pt",
+            f"Param: {simplify_number(self.end_points['total_param_bef'])} -> {simplify_number(self.end_points['total_param_aft'])}",
+            f"Accuracy: {self.end_points['accuracy_bef']:.2f} -> {self.end_points['accuracy_aft']:.2f}",
+        ]
+        return basic_info

@@ -1,4 +1,5 @@
 from streamlit_elements import elements, mui, dashboard, nivo
+# from utils.figures import get_model_param_table, get_model_spec_table
 
 # class DashBoard:
 #     def __init__(self, container, num_parts=4) -> None:
@@ -21,14 +22,21 @@ def create_dashboard(container, summary_writer, figure_names):
     
     with container:
         with elements("dashboard"):
-            # layout = [
-            #     dashboard.Item(f"item_{i}", (i%2)*2, (i//2)*2, 2, 2) for i in range(num_parts)
-            # ]
             layout = [
-                dashboard.Item(f"item_{i}", 0, i*2, 4, 2) for i in range(num_parts)
+                dashboard.Item(f"item_{i}", (i%2)*2, (i//2)*2, 2, 2) for i in range(num_parts)
             ]
+            # layout = [
+            #     dashboard.Item(f"item_{i}", 0, i*2, 4, 2) for i in range(num_parts)
+            # ]
             i = 0
             with dashboard.Grid(layout):
+                if "Basic Info" in figure_names:
+                    with mui.Paper(key=f"item_{i}"):
+                        mui.Typography("Basic Info")
+                        for item in summary_writer.get_basic_info():
+                            mui.Typography(item)
+                    i += 1
+                
                 if "Tune Loss" in figure_names:
                     with mui.Paper(key=f"item_{i}"):
                         data = summary_writer.get_data("Loss/tune")
@@ -198,6 +206,32 @@ def create_dashboard(container, summary_writer, figure_names):
                                         "legendOffset": -40
                                     },
                                 )
+                    i += 1
+                    
+                if "model_param" in figure_names:
+                    col, row = summary_writer.get_model_param_table()
+                    with mui.Paper(key=f"item_{i}"):
+                        mui.DataGrid(
+                            columns=col,
+                            rows=row,
+                            # pageSize=5,
+                            # rowsPerPageOptions=[5],
+                            # checkboxSelection=True,
+                            disableSelectionOnClick=True,
+                        )
+                    i += 1
+                    
+                if "model_spec" in figure_names:
+                    col, row = summary_writer.get_model_spec_table()
+                    with mui.Paper(key=f"item_{i}"):
+                        mui.DataGrid(
+                            columns=col,
+                            rows=row,
+                            # pageSize=5,
+                            # rowsPerPageOptions=[5],
+                            # checkboxSelection=True,
+                            disableSelectionOnClick=True,
+                        )
                     i += 1
                     
                 if "test" in figure_names:
